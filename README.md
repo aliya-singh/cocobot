@@ -29,7 +29,7 @@ An intelligent AI-powered chatbot that helps engineers solve technical problems 
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/aliya-singh/cocobot
 cd cocobot
 
 # 2. Create virtual environment
@@ -245,12 +245,6 @@ MIT License - feel free to use this project however you want!
 - **Accurate Info**: Keep temperature low (0.3) for factual questions
 - **Creative Ideas**: Increase temperature (0.7) for brainstorming
 - **Multiple Sources**: Combine different document types for better context
-
-## 📞 Contact
-
-- GitHub: [Your GitHub]
-- Email: [Your Email]
-- Twitter: [Your Twitter]
 
 ---
 
