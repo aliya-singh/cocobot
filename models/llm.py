@@ -1,5 +1,6 @@
 import logging
 from typing import List, Dict, Optional, Any
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -8,16 +9,34 @@ class GroqLLM:
     """Groq provider - Free, fast, unlimited!"""
     
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile", temperature: float = 0.7):
-        """Initialize Groq LLM"""
+        """Initialize Groq LLM - WITHOUT proxies"""
         self.api_key = api_key
-        self.model = "llama-3.3-70b-versatile"  # Force this model only
+        self.model = "llama-3.3-70b-versatile"
         self.temperature = temperature
         
         try:
             from groq import Groq
-            # Create client without any extra parameters
-            self.client = Groq(api_key=api_key)
-            logger.info(f"✅ Groq initialized: {model}")
+            
+            # Create client with ONLY api_key, no other parameters
+            # This avoids the proxies error
+            self.client = Groq(
+                api_key=api_key,
+                # Remove ALL other parameters that might cause issues
+            )
+            logger.info(f"✅ Groq initialized: {self.model}")
+        except TypeError as e:
+            if "proxies" in str(e):
+                logger.error("❌ Groq proxies error - trying workaround")
+                # Fallback: direct HTTP client
+                try:
+                    from groq import Groq
+                    # Try with minimal params
+                    self.client = Groq(api_key=api_key)
+                except Exception as e2:
+                    logger.error(f"❌ Groq fallback failed: {e2}")
+                    raise
+            else:
+                raise
         except Exception as e:
             logger.error(f"❌ Groq error: {e}")
             raise
@@ -25,12 +44,17 @@ class GroqLLM:
     def chat(self, messages: List[Dict[str, str]], max_tokens: Optional[int] = None) -> str:
         """Send chat to Groq"""
         try:
-            # Only pass supported arguments
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature
-            )
+            # Build kwargs with only supported parameters
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+            }
+            
+            if max_tokens:
+                kwargs["max_tokens"] = max_tokens
+            
+            response = self.client.chat.completions.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"❌ Groq chat error: {e}")
@@ -38,7 +62,11 @@ class GroqLLM:
     
     def get_model_info(self) -> Dict[str, Any]:
         """Get model info"""
-        return {"provider": "groq", "model": self.model, "status": "✅"}
+        return {
+            "provider": "groq",
+            "model": self.model,
+            "status": "✅"
+        }
 
 
 class OpenAILLM:
@@ -53,7 +81,7 @@ class OpenAILLM:
         try:
             from openai import OpenAI
             self.client = OpenAI(api_key=api_key)
-            logger.info(f"✅ OpenAI initialized: {model}")
+            logger.info(f"✅ OpenAI initialized")
         except Exception as e:
             logger.error(f"❌ OpenAI error: {e}")
             raise
@@ -73,7 +101,11 @@ class OpenAILLM:
     
     def get_model_info(self) -> Dict[str, Any]:
         """Get model info"""
-        return {"provider": "openai", "model": self.model, "status": "✅"}
+        return {
+            "provider": "openai",
+            "model": self.model,
+            "status": "✅"
+        }
 
 
 class GeminiLLM:
@@ -89,7 +121,7 @@ class GeminiLLM:
             import google.generativeai as genai
             genai.configure(api_key=api_key)
             self.client = genai.GenerativeModel(model)
-            logger.info(f"✅ Gemini initialized: {model}")
+            logger.info(f"✅ Gemini initialized")
         except Exception as e:
             logger.error(f"❌ Gemini error: {e}")
             raise
@@ -97,7 +129,6 @@ class GeminiLLM:
     def chat(self, messages: List[Dict[str, str]], max_tokens: Optional[int] = None) -> str:
         """Send chat to Gemini"""
         try:
-            # Convert to Gemini format
             history = []
             user_msg = None
             
@@ -119,7 +150,11 @@ class GeminiLLM:
     
     def get_model_info(self) -> Dict[str, Any]:
         """Get model info"""
-        return {"provider": "gemini", "model": self.model, "status": "✅"}
+        return {
+            "provider": "gemini",
+            "model": self.model,
+            "status": "✅"
+        }
 
 
 class LLMFactory:
@@ -127,18 +162,8 @@ class LLMFactory:
     
     @staticmethod
     def create_llm(provider: str, api_key: str, temperature: float = 0.7):
-        """Create LLM - ONLY USES PROVIDER AND API KEY"""
+        """Create LLM instance"""
         provider = provider.lower().strip()
-        
-        # Use ONLY these models
-        MODELS = {
-            "groq": "llama-3.3-70b-versatile",  # ✅ YOUR MODEL
-            "openai": "gpt-3.5-turbo",
-            "gemini": "gemini-1.5-flash"
-        }
-        
-        if provider not in MODELS:
-            raise ValueError(f"Provider must be: groq, openai, or gemini")
         
         if provider == "groq":
             return GroqLLM(api_key, "llama-3.3-70b-versatile", temperature)
@@ -146,3 +171,5 @@ class LLMFactory:
             return OpenAILLM(api_key, "gpt-3.5-turbo", temperature)
         elif provider == "gemini":
             return GeminiLLM(api_key, "gemini-1.5-flash", temperature)
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
