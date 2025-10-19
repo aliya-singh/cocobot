@@ -1,8 +1,12 @@
 import streamlit as st
-import requests
-import json
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
+import logging
+from config.config import Config
+from models.groq_client import GroqClient
+from utils.document_handler import DocumentHandler
+from utils.search import DocumentSearch
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="AI Companion", page_icon="⚙️", layout="wide")
 
@@ -14,50 +18,12 @@ if "documents" not in st.session_state:
 if "query_count" not in st.session_state:
     st.session_state.query_count = 0
 
-def extract_pdf_text(file):
-    """Extract text from PDF"""
-    try:
-        import PyPDF2
-        reader = PyPDF2.PdfReader(file)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
-        return text[:3000]
-    except Exception as e:
-        st.error(f"PDF Error: {e}")
-        return ""
-
-def fetch_website_content(url):
-    """Fetch and extract text from website"""
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Remove script and style
-        for script in soup(["script", "style"]):
-            script.decompose()
-        
-        # Get text
-        text = soup.get_text()
-        
-        # Clean up
-        lines = (line.strip() for line in text.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        text = '\n'.join(chunk for chunk in chunks if chunk)
-        
-        return text[:3000]
-    except Exception as e:
-        st.error(f"Website Error: {e}")
-        return ""
-
 # Sidebar
 with st.sidebar:
     st.header("⚙️ Settings")
     response_mode = st.radio("Mode", ["concise", "detailed"])
-    temperature = st.slider("Temperature", 0.0, 1.0, 0.3 if response_mode == "concise" else 0.7)
+    temperature = Config.DEFAULT_TEMPERATURE_CONCISE if response_mode == "concise" else Config.DEFAULT_TEMPERATURE_DETAILED
+    temperature = st.slider("Temperature", 0.0, 1.0, temperature)
     
     st.subheader("📚 RAG - Add Knowledge")
     
@@ -68,7 +34,7 @@ with st.sidebar:
         st.write("**Upload Documents**")
         uploaded_files = st.file_uploader(
             "Upload files (TXT, MD, PDF)",
-            type=['txt', 'md', 'pdf'],
+            type=Config.ALLOWED_EXTENSIONS,
             accept_multiple_files=True,
             key="file_uploader"
         )
@@ -76,14 +42,12 @@ with st.sidebar:
         if uploaded_files and st.button("📤 Index Files", key="index_files"):
             for file in uploaded_files:
                 try:
-                    if file.type == "application/pdf":
-                        text = extract_pdf_text(file)
-                    else:
-                        text = file.getvalue().decode('utf-8')
-                    
-                    if text:
+                    text, success = DocumentHandler.extract_from_file(file, file.type)
+                    if success and text:
                         st.session_state.documents[file.name] = text
                         st.success(f"✅ Added: {file.name}")
+                    else:
+                        st.error(f"No text extracted from {file.name}")
                 except Exception as e:
                     st.error(f"Error with {file.name}: {e}")
     
@@ -96,14 +60,11 @@ with st.sidebar:
         )
         
         if website_url and st.button("🌐 Fetch Website", key="fetch_website"):
-            if not website_url.startswith(('http://', 'https://')):
-                website_url = 'https://' + website_url
-            
             try:
-                domain = urlparse(website_url).netloc
+                domain = DocumentHandler.get_domain_name(website_url)
                 with st.spinner(f"Fetching {domain}..."):
-                    text = fetch_website_content(website_url)
-                    if text:
+                    text, success = DocumentHandler.fetch_website_content(website_url)
+                    if success and text:
                         st.session_state.documents[domain] = text
                         st.success(f"✅ Added: {domain}")
                     else:
@@ -126,16 +87,19 @@ with st.sidebar:
         )
         
         if text_input and text_name and st.button("📝 Add Text", key="add_text"):
-            st.session_state.documents[text_name] = text_input[:3000]
+            st.session_state.documents[text_name] = text_input[:Config.MAX_DOCUMENT_SIZE]
             st.success(f"✅ Added: {text_name}")
     
     # Show indexed documents
     st.subheader("📚 Indexed Sources")
     if st.session_state.documents:
+        if len(st.session_state.documents) > Config.MAX_DOCUMENTS:
+            st.warning(f"Max {Config.MAX_DOCUMENTS} documents allowed")
+        
         for doc_name in st.session_state.documents.keys():
             col1, col2 = st.columns([4, 1])
             with col1:
-                st.caption(f"📄 {doc_name}")
+                st.caption(f"📄 {doc_name[:30]}")
             with col2:
                 if st.button("❌", key=f"delete_{doc_name}"):
                     del st.session_state.documents[doc_name]
@@ -171,67 +135,37 @@ if user_input:
     with st.chat_message("assistant"):
         with st.spinner("🤔 Thinking..."):
             try:
-                api_key = st.secrets.get("GROQ_API_KEY")
-                if not api_key:
-                    st.error("❌ No Groq API key in secrets")
-                    st.stop()
+                # Initialize Groq client
+                client = GroqClient()
                 
-                # Build context from all sources
-                context = ""
-                if st.session_state.documents:
-                    context = "KNOWLEDGE BASE:\n"
-                    for doc_name, doc_text in st.session_state.documents.items():
-                        # Search for relevant content
-                        query_words = user_input.lower().split()
-                        if any(word in doc_text.lower() for word in query_words):
-                            context += f"\n[{doc_name}]\n{doc_text}\n"
-                    
-                    if context == "KNOWLEDGE BASE:\n":
-                        context = "No relevant documents found in knowledge base.\n"
+                # Build context from documents
+                context = DocumentSearch.build_rag_context(user_input, st.session_state.documents)
                 
+                # Build system prompt
                 system = "Be concise and practical." if response_mode == "concise" else "Be detailed, thorough, and provide examples."
                 
-                # Direct Groq API REST call
-                url = "https://api.groq.com/openai/v1/chat/completions"
-                
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                }
-                
+                # Build messages
                 messages = [
                     {"role": "system", "content": f"{system}\n\n{context}"},
                     *st.session_state.chat_history[-5:]
                 ]
                 
-                payload = {
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": 2000
-                }
+                # Get response
+                answer = client.chat(messages, temperature=temperature)
                 
-                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                st.markdown(answer)
+                st.session_state.chat_history.append({"role": "assistant", "content": answer})
+                st.session_state.query_count += 1
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    answer = data['choices'][0]['message']['content']
-                    st.markdown(answer)
-                    st.session_state.chat_history.append({"role": "assistant", "content": answer})
-                    st.session_state.query_count += 1
-                    
-                    # Show sources used
-                    with st.expander("📚 Sources Used"):
-                        if st.session_state.documents:
-                            for doc_name in st.session_state.documents.keys():
-                                st.caption(f"✅ {doc_name}")
-                        else:
-                            st.caption("No sources")
-                else:
-                    st.error(f"❌ Error {response.status_code}: {response.text}")
+                # Show sources used
+                if st.session_state.documents:
+                    with st.expander("📚 Sources"):
+                        for doc_name in st.session_state.documents.keys():
+                            st.caption(f"✅ {doc_name}")
                 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
+                logger.error(f"Error: {e}")
 
 st.divider()
 col1, col2, col3 = st.columns(3)
@@ -240,4 +174,4 @@ with col1:
 with col2:
     st.metric("📚 Sources", len(st.session_state.documents))
 with col3:
-    st.metric("📝 Chat History", len(st.session_state.chat_history))
+    st.metric("📝 History", len(st.session_state.chat_history))
