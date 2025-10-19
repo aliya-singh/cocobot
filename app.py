@@ -169,7 +169,7 @@ if user_input:
                         st.error(f"❌ {selected_provider.upper()} API key not found")
                         st.stop()
                     
-                    st.session_state.llm_instance = FLMFactory.create_llm(
+                    st.session_state.llm_instance = LLMFactory.create_llm(
                         selected_provider,
                         api_key,
                         temperature=temperature
