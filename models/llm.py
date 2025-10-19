@@ -10,53 +10,42 @@ class GroqLLM:
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile", temperature: float = 0.7):
         """Initialize Groq LLM"""
         self.api_key = api_key
-        self.model = model
+        self.model = "llama-3.3-70b-versatile"  # Force this model only
         self.temperature = temperature
         
         try:
             from groq import Groq
+            # Create client without any extra parameters
             self.client = Groq(api_key=api_key)
-            logger.info(f"Groq client initialized with model: {model}")
-        except ImportError:
-            raise ImportError("groq package not installed. Install with: pip install groq")
+            logger.info(f"✅ Groq initialized: {model}")
         except Exception as e:
-            logger.error(f"Failed to initialize Groq: {e}")
+            logger.error(f"❌ Groq error: {e}")
             raise
     
     def chat(self, messages: List[Dict[str, str]], max_tokens: Optional[int] = None) -> str:
-        """Send chat request to Groq"""
+        """Send chat to Groq"""
         try:
-            kwargs = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": self.temperature,
-            }
-            
-            if max_tokens:
-                kwargs["max_tokens"] = max_tokens
-            
-            response = self.client.chat.completions.create(**kwargs)
+            # Only pass supported arguments
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature
+            )
             return response.choices[0].message.content
-        
         except Exception as e:
-            logger.error(f"Groq API error: {e}")
+            logger.error(f"❌ Groq chat error: {e}")
             raise
     
     def get_model_info(self) -> Dict[str, Any]:
-        """Get model information"""
-        return {
-            "provider": "groq",
-            "model": self.model,
-            "temperature": self.temperature,
-            "status": "✅ Working"
-        }
+        """Get model info"""
+        return {"provider": "groq", "model": self.model, "status": "✅"}
 
 
 class OpenAILLM:
-    """OpenAI provider - Premium quality"""
+    """OpenAI provider"""
     
     def __init__(self, api_key: str, model: str = "gpt-3.5-turbo", temperature: float = 0.7):
-        """Initialize OpenAI LLM"""
+        """Initialize OpenAI"""
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
@@ -64,47 +53,34 @@ class OpenAILLM:
         try:
             from openai import OpenAI
             self.client = OpenAI(api_key=api_key)
-            logger.info(f"OpenAI client initialized with model: {model}")
-        except ImportError:
-            raise ImportError("openai package not installed. Install with: pip install openai")
+            logger.info(f"✅ OpenAI initialized: {model}")
         except Exception as e:
-            logger.error(f"Failed to initialize OpenAI: {e}")
+            logger.error(f"❌ OpenAI error: {e}")
             raise
     
     def chat(self, messages: List[Dict[str, str]], max_tokens: Optional[int] = None) -> str:
-        """Send chat request to OpenAI"""
+        """Send chat to OpenAI"""
         try:
-            kwargs = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": self.temperature,
-            }
-            
-            if max_tokens:
-                kwargs["max_tokens"] = max_tokens
-            
-            response = self.client.chat.completions.create(**kwargs)
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature
+            )
             return response.choices[0].message.content
-        
         except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
+            logger.error(f"❌ OpenAI chat error: {e}")
             raise
     
     def get_model_info(self) -> Dict[str, Any]:
-        """Get model information"""
-        return {
-            "provider": "openai",
-            "model": self.model,
-            "temperature": self.temperature,
-            "status": "✅ Working"
-        }
+        """Get model info"""
+        return {"provider": "openai", "model": self.model, "status": "✅"}
 
 
 class GeminiLLM:
-    """Google Gemini provider - Balanced quality/cost"""
+    """Google Gemini provider"""
     
     def __init__(self, api_key: str, model: str = "gemini-1.5-flash", temperature: float = 0.7):
-        """Initialize Gemini LLM"""
+        """Initialize Gemini"""
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
@@ -113,19 +89,17 @@ class GeminiLLM:
             import google.generativeai as genai
             genai.configure(api_key=api_key)
             self.client = genai.GenerativeModel(model)
-            logger.info(f"Gemini client initialized with model: {model}")
-        except ImportError:
-            raise ImportError("google-generativeai package not installed. Install with: pip install google-generativeai")
+            logger.info(f"✅ Gemini initialized: {model}")
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini: {e}")
+            logger.error(f"❌ Gemini error: {e}")
             raise
     
     def chat(self, messages: List[Dict[str, str]], max_tokens: Optional[int] = None) -> str:
-        """Send chat request to Gemini"""
+        """Send chat to Gemini"""
         try:
-            # Convert messages to Gemini format
+            # Convert to Gemini format
             history = []
-            user_message = None
+            user_msg = None
             
             for msg in messages[:-1]:
                 history.append({
@@ -134,60 +108,41 @@ class GeminiLLM:
                 })
             
             if messages:
-                user_message = messages[-1]["content"]
+                user_msg = messages[-1]["content"]
             
             chat = self.client.start_chat(history=history)
-            response = chat.send_message(user_message)
-            
+            response = chat.send_message(user_msg)
             return response.text
-        
         except Exception as e:
-            logger.error(f"Gemini API error: {e}")
+            logger.error(f"❌ Gemini chat error: {e}")
             raise
     
     def get_model_info(self) -> Dict[str, Any]:
-        """Get model information"""
-        return {
-            "provider": "gemini",
-            "model": self.model,
-            "temperature": self.temperature,
-            "status": "✅ Working"
-        }
+        """Get model info"""
+        return {"provider": "gemini", "model": self.model, "status": "✅"}
 
 
 class LLMFactory:
     """Factory to create LLM instances"""
     
     @staticmethod
-    def create_llm(provider: str, api_key: str, model: str = None, temperature: float = 0.7):
-        """Create LLM instance"""
-        from config.config import Config
-        
+    def create_llm(provider: str, api_key: str, temperature: float = 0.7):
+        """Create LLM - ONLY USES PROVIDER AND API KEY"""
         provider = provider.lower().strip()
         
+        # Use ONLY these models
+        MODELS = {
+            "groq": "llama-3.3-70b-versatile",  # ✅ YOUR MODEL
+            "openai": "gpt-3.5-turbo",
+            "gemini": "gemini-1.5-flash"
+        }
+        
+        if provider not in MODELS:
+            raise ValueError(f"Provider must be: groq, openai, or gemini")
+        
         if provider == "groq":
-            model = model or Config.GROQ_MODEL
-            return GroqLLM(api_key, model, temperature)
-        
+            return GroqLLM(api_key, "llama-3.3-70b-versatile", temperature)
         elif provider == "openai":
-            model = model or Config.OPENAI_MODEL
-            return OpenAILLM(api_key, model, temperature)
-        
+            return OpenAILLM(api_key, "gpt-3.5-turbo", temperature)
         elif provider == "gemini":
-            model = model or Config.GEMINI_MODEL
-            return GeminiLLM(api_key, model, temperature)
-        
-        else:
-            raise ValueError(f"Unknown provider: {provider}")
-    
-    @staticmethod
-    def get_best_available_provider(groq_key: str = "", openai_key: str = "", gemini_key: str = "") -> str:
-        """Get best available provider"""
-        if groq_key:
-            return "groq"
-        elif gemini_key:
-            return "gemini"
-        elif openai_key:
-            return "openai"
-        else:
-            raise ValueError("No API keys provided!")
+            return GeminiLLM(api_key, "gemini-1.5-flash", temperature)

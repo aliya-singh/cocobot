@@ -15,9 +15,9 @@ class Config:
     
     # ==================== LLM SETTINGS ====================
     DEFAULT_LLM_PROVIDER = os.getenv("DEFAULT_LLM_PROVIDER", "groq")
-    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    GROQ_MODEL = "llama-3.3-70b-versatile" 
+    OPENAI_MODEL = "gpt-3.5-turbo"
+    GEMINI_MODEL = "gemini-1.5-flash"
     
     # Temperature settings for different response modes
     TEMP_CONCISE = 0.3  # More deterministic, focused
