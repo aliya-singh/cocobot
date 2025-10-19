@@ -22,16 +22,11 @@ with st.sidebar:
     rag_enabled = st.checkbox("Enable RAG", value=True)
     
     if rag_enabled:
-        uploaded_files = st.file_uploader("Upload (TXT, MD, PDF)", type=['txt', 'md', 'pdf'], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Upload (TXT, MD)", type=['txt', 'md'], accept_multiple_files=True)
         if uploaded_files and st.button("Index"):
             for file in uploaded_files:
                 try:
-                    if file.type == "application/pdf":
-                        import PyPDF2
-                        reader = PyPDF2.PdfReader(file)
-                        text = "".join([page.extract_text() for page in reader.pages])
-                    else:
-                        text = file.getvalue().decode('utf-8')
+                    text = file.getvalue().decode('utf-8')
                     st.session_state.documents[file.name] = text[:2000]
                 except:
                     pass
@@ -60,43 +55,47 @@ if user_input:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                api_key = st.secrets.get("GOOGLE_GEMINI_API_KEY")
+                api_key = st.secrets.get("GROQ_API_KEY")
                 if not api_key:
-                    st.error("❌ No API key in secrets")
+                    st.error("❌ No Groq API key in secrets")
                     st.stop()
                 
                 # Build context
                 context = ""
                 if rag_enabled and st.session_state.documents:
-                    context = "From your documents:\n"
+                    context = "DOCUMENTS:\n"
                     for doc_name, doc_text in st.session_state.documents.items():
-                        if any(word in doc_text.lower() for word in user_input.lower().split()):
-                            context += f"\n{doc_name}: {doc_text[:500]}\n"
+                        context += f"{doc_name}:\n{doc_text}\n---\n"
                 
                 system = "Be concise." if response_mode == "concise" else "Be detailed and thorough."
                 
-                # Direct Google API call
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                # Direct Groq API REST call
+                url = "https://api.groq.com/openai/v1/chat/completions"
                 
-                payload = {
-                    "contents": [{
-                        "parts": [{
-                            "text": f"{system}\n\n{context}\n\nUser: {user_input}"
-                        }]
-                    }],
-                    "generationConfig": {
-                        "temperature": temperature,
-                        "maxOutputTokens": 2000
-                    }
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
                 }
                 
-                response = requests.post(url, json=payload, timeout=30)
+                messages = [
+                    {"role": "system", "content": f"{system}\n\n{context}"},
+                    *st.session_state.chat_history[-5:]
+                ]
+                
+                payload = {
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": 2000
+                }
+                
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
                 
                 if response.status_code == 200:
                     data = response.json()
-                    answer = data['candidates'][0]['content']['parts'][0]['text']
+                    answer = data['choices'][0]['message']['content']
                 else:
-                    answer = f"API Error: {response.status_code}\n{response.text}"
+                    answer = f"❌ Error {response.status_code}: {response.text}"
                 
                 st.markdown(answer)
                 st.session_state.chat_history.append({"role": "assistant", "content": answer})
