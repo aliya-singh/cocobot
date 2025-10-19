@@ -51,6 +51,7 @@ class GroqLLM(BaseLLM):
         
         try:
             from groq import Groq
+            # Don't pass proxies - just api_key
             self.client = Groq(api_key=api_key)
             logger.info(f"Groq client initialized with model: {model}")
         except ImportError:
@@ -59,17 +60,8 @@ class GroqLLM(BaseLLM):
             logger.error(f"Failed to initialize Groq: {e}")
             raise
     
-    def chat(self, messages: List[Dict[str, str]], max_tokens: Optional[int] = None) -> str:
-        """
-        Send chat request to Groq
-        
-        Args:
-            messages: Chat messages
-            max_tokens: Max response tokens
-        
-        Returns:
-            Response text
-        """
+    def chat(self, messages, max_tokens=None):
+        """Send chat request to Groq"""
         try:
             kwargs = {
                 "model": self.model,
@@ -81,23 +73,11 @@ class GroqLLM(BaseLLM):
                 kwargs["max_tokens"] = max_tokens
             
             response = self.client.chat.completions.create(**kwargs)
-            
             return response.choices[0].message.content
         
         except Exception as e:
             logger.error(f"Groq API error: {e}")
             raise
-    
-    def get_model_info(self) -> Dict[str, Any]:
-        """Get Groq model info"""
-        return {
-            "provider": "groq",
-            "model": self.model,
-            "temperature": self.temperature,
-            "cost_per_1m_tokens": "$0 (FREE!)",
-            "context_window": "128K tokens" if "70b" in self.model else "32K tokens",
-            "speed": "Very Fast (50+ req/sec)"
-        }
 
 
 class OpenAILLM(BaseLLM):
