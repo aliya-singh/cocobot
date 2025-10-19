@@ -5,7 +5,6 @@ An intelligent AI-powered chatbot that helps engineers solve technical problems 
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-FF4B4B?style=flat-square&logo=streamlit)
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python)
 ![Groq](https://img.shields.io/badge/Groq-Free%20API-00D084?style=flat-square)
-![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 ## ✨ Features
 
