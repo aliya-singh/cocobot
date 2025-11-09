@@ -1,6 +1,6 @@
-# 🔧 AI Knowledge Companion for Engineers
+# 🔧 AI Knowledge Companion for Everyone
 
-An intelligent AI-powered chatbot that helps engineers solve technical problems using Retrieval-Augmented Generation (RAG). Upload documents, paste website content, or add text to create a personalized knowledge base and get instant AI-powered answers.
+An intelligent AI-powered chatbot that helps everyone solve technical problems using Retrieval-Augmented Generation (RAG). Upload documents, paste website content, or add text to create a personalized knowledge base and get instant AI-powered answers.
 
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-FF4B4B?style=flat-square&logo=streamlit)
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python)
@@ -248,7 +248,7 @@ MIT License - feel free to use this project however you want!
 
 ---
 
-**Made with ❤️ for Engineers**
+**Made with ❤️ for Everyone**
 
 Built with Streamlit, Groq, and BeautifulSoup
 
